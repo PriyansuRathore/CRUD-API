@@ -3,8 +3,10 @@ import express from "express";
 import cors from "cors";
 import pool from "./config/db.js";
 import userRoutes from "./routes/userRoutes.js";
+import authRoutes from "./routes/authRoutes.js";
 import errorhandling from "./middleware/errorHandler.js";
 import createUserTable from "./data/createUserTable.js";
+import { globalLimiter, authLimiter } from "./middleware/rateLimiter.js";
 const app = express();
 const PORT = process.env.PORT || 3001;
 
@@ -13,7 +15,9 @@ app.use(express.json());
 app.use(cors());
 
 // Routes
+app.use(globalLimiter);
 app.use("/api", userRoutes);
+app.use("/api/auth", authLimiter, authRoutes);
 // Error handling middleware
 app.use(errorhandling);
 
