@@ -2,6 +2,9 @@
 
 A REST API built with Node.js, Express and PostgreSQL that performs full CRUD operations on a users resource with JWT authentication and rate limiting.
 
+## Live Demo
+https://crud-api-kg8n.onrender.com
+
 ## Tech Stack
 
 - **Node.js** - Runtime environment
