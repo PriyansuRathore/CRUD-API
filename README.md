@@ -1,6 +1,6 @@
 # CRUD REST API
 
-A REST API built with Node.js, Express and PostgreSQL that performs full CRUD operations on a users resource.
+A REST API built with Node.js, Express and PostgreSQL that performs full CRUD operations on a users resource with JWT authentication and rate limiting.
 
 ## Tech Stack
 
@@ -9,6 +9,9 @@ A REST API built with Node.js, Express and PostgreSQL that performs full CRUD op
 - **PostgreSQL** - Database
 - **pg** - PostgreSQL client for Node.js
 - **Joi** - Input validation
+- **bcrypt** - Password hashing
+- **jsonwebtoken** - JWT authentication
+- **express-rate-limit** - Rate limiting
 - **dotenv** - Environment variable management
 - **nodemon** - Auto-restart during development
 
@@ -18,22 +21,27 @@ A REST API built with Node.js, Express and PostgreSQL that performs full CRUD op
 CRUD api/
 ├── src/
 │   ├── config/
-│   │   └── db.js              # PostgreSQL connection pool
+│   │   └── db.js                  # PostgreSQL connection pool
 │   ├── controller/
-│   │   └── userController.js  # Request/response logic
+│   │   ├── authController.js      # Register/login logic
+│   │   └── userController.js      # Request/response logic
 │   ├── data/
-│   │   ├── createUserTable.js # Auto-creates users table on startup
-│   │   └── data.sql           # Raw SQL reference
+│   │   ├── createUserTable.js     # Auto-creates users table on startup
+│   │   └── data.sql               # Raw SQL reference
 │   ├── middleware/
-│   │   ├── errorHandler.js    # Centralized error handling
-│   │   └── inputValidator.js  # Joi validation middleware
+│   │   ├── authMiddleware.js      # JWT token verification
+│   │   ├── errorHandler.js        # Centralized error handling
+│   │   ├── inputValidator.js      # Joi validation middleware
+│   │   └── rateLimiter.js         # Global and auth rate limiters
 │   ├── models/
-│   │   └── userModel.js       # All database queries
+│   │   ├── authModel.js           # Register/login database queries
+│   │   └── userModel.js           # All user database queries
 │   ├── routes/
-│   │   └── userRoutes.js      # API route definitions
-│   ├── .env                   # Environment variables (not pushed)
-│   ├── env.js                 # Loads .env using dotenv
-│   └── index.js               # Entry point
+│   │   ├── authRoutes.js          # Auth route definitions
+│   │   └── userRoutes.js          # User route definitions
+│   ├── .env                       # Environment variables (not pushed)
+│   ├── env.js                     # Loads .env using dotenv
+│   └── index.js                   # Entry point
 ├── .gitignore
 ├── package.json
 └── README.md
@@ -41,6 +49,13 @@ CRUD api/
 
 ## API Endpoints
 
+### Auth Routes (Public)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/auth/register` | Register a new user |
+| POST | `/api/auth/login` | Login and get JWT token |
+
+### User Routes (Protected — requires token)
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/api/user` | Get all users |
@@ -49,8 +64,26 @@ CRUD api/
 | PUT | `/api/user/:id` | Update a user by ID |
 | DELETE | `/api/user/:id` | Delete a user by ID |
 
-## Request Body (POST & PUT)
+## Request Bodies
 
+### Register
+```json
+{
+  "name": "John Doe",
+  "email": "john@example.com",
+  "password": "123456"
+}
+```
+
+### Login
+```json
+{
+  "email": "john@example.com",
+  "password": "123456"
+}
+```
+
+### Create/Update User
 ```json
 {
   "name": "John Doe",
@@ -61,6 +94,34 @@ CRUD api/
 ### Validation Rules
 - `name` — string, min 3 characters, max 255 characters, required
 - `email` — valid email format, required
+- `password` — required for register and login
+
+## Authentication
+
+This API uses JWT (JSON Web Token) authentication.
+
+1. Register a user via `POST /api/auth/register`
+2. Login via `POST /api/auth/login` to get a token
+3. Pass the token in the `Authorization` header for all protected routes:
+
+```
+Authorization: Bearer <your_token>
+```
+
+## Rate Limiting
+
+| Limiter | Routes | Max Requests | Window |
+|---------|--------|-------------|--------|
+| Global | All routes | 100 requests | 15 minutes |
+| Auth | `/api/auth/*` | 10 requests | 15 minutes |
+
+When limit is exceeded:
+```json
+{
+  "status": 429,
+  "message": "Too many requests, please try again after 15 minutes"
+}
+```
 
 ## Sample Response
 
@@ -104,6 +165,7 @@ DATABASE=your_database_name
 PASSWORD=your_postgres_password
 DBPORT=5432
 PORT=3001
+JWT_SECRET=your_jwt_secret_key
 ```
 
 4. Run the server
@@ -120,13 +182,15 @@ Server will start on `http://localhost:3001`
 This project follows a layered architecture:
 
 ```
-Request → Routes → Middleware (Validation) → Controller → Model → Database
-                                                              ↓
-Response ←————————————————————————————————————————————————————
+Request → Routes → Middleware (Auth + Validation) → Controller → Model → Database
+                                                                    ↓
+Response ←——————————————————————————————————————————————————————————
 ```
 
 - **Routes** — define endpoints and HTTP methods
-- **Middleware** — validates input before it reaches the controller
+- **Auth Middleware** — verifies JWT token on protected routes
+- **Validation Middleware** — validates input before it reaches the controller
 - **Controller** — handles request/response logic, calls model functions
 - **Model** — contains all SQL queries, talks directly to the database
 - **Error Handler** — catches all errors and returns a consistent 500 response
+- **Rate Limiter** — limits requests per IP to prevent abuse
